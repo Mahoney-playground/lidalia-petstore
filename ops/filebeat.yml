@@ -1,0 +1,26 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints:
+        enabled: true
+        default_config:
+          enabled: false
+
+processors:
+  - add_cloud_metadata: ~
+  - add_host_metadata:
+      netinfo.enabled: true
+
+output.elasticsearch:
+  hosts:
+    - http://elasticsearch:9200
+  indices:
+    - index: "petstore-%{[docker.container.labels.com_docker_compose_service]:other}-filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+setup:
+  kibana.host: http://kibana:5601
+  template.enabled: true
+  dashboards.enabled: true
+
+logging.to_stderr: true
+logging.metrics.enabled: false

@@ -3,6 +3,6 @@ kotest = "5.0.0.M3"
 
 [libraries]
 kotest-runnerJunit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
-
-[bundles]
-kotest = ["kotest-runnerJunit5"]
+kotlin-shell-core = { module = "eu.jrie.jetbrains:kotlin-shell-core", version = "0.2.1" }
+turtle = { module = "com.lordcodes.turtle:turtle", version = "0.6.0" }
+executor = { module = "com.dorkbox:Executor", version = "3.3.2" }

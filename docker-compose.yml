@@ -1,2 +1,89 @@
-version: "3.3"
+version: "2.4"
 
+services:
+  traefik:
+    image: traefik:v2.5
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --ping.entrypoint=web
+      - --metrics.prometheus=true
+      - --accesslog=true
+    ports:
+      - ${LISTEN-80}:80
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      co.elastic.logs/enabled: true
+      co.elastic.logs/module: traefik
+
+  nginx:
+    image: nginx:1.21.3-alpine
+    labels:
+      traefik.enable: true
+      traefik.http.routers.nginx.rule: Host(`petstore.lidalia.localhost`)
+      traefik.http.routers.nginx.entrypoints: web
+      co.elastic.logs/enabled: true
+      co.elastic.logs/module: nginx
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.2
+    volumes:
+      - ./ops/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - type: volume
+        source: elasticsearch
+        target: /usr/share/elasticsearch/data
+    environment:
+      ES_JAVA_OPTS: "-Xms256m -Xmx512m "
+      ELASTIC_PASSWORD: changeme
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks
+      # see https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+      discovery.type: single-node
+    labels:
+      traefik.enable: true
+      traefik.http.routers.elasticsearch.rule: Host(`elasticsearch.localhost`)
+      traefik.http.routers.elasticsearch.entrypoints: web
+      co.elastic.logs/enabled: true
+      co.elastic.logs/module: elasticsearch
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://elasticsearch:9200" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.15.2
+    volumes:
+      - ./ops/kibana.yml:/usr/share/kibana/config/kibana.yml
+    labels:
+      traefik.enable: true
+      traefik.http.routers.kibana.rule: Host(`kibana.localhost`)
+      traefik.http.routers.kibana.entrypoints: web
+      co.elastic.logs/enabled: true
+      co.elastic.logs/module: kibana
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://kibana:5601/api/status" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.15.2
+    user: root
+    command:
+      - -strict.perms=false
+    depends_on:
+      kibana:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./ops/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers/:/var/lib/docker/containers/:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  elasticsearch:
